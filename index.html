@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Ramo - YHIBEL en estrellas (texto más arriba)</title>
+<style>
+  :root{--accent:#ff4d6d;--soft:rgba(255,255,255,0.94)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#03050a;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;color:var(--soft);overflow:hidden}
+
+  .controls{position:fixed;top:14px;right:14px;z-index:400}
+  .controls button{background:var(--accent);border:none;color:#fff;padding:8px 12px;border-radius:10px;margin-left:8px;font-weight:700;cursor:pointer;box-shadow:0 8px 26px rgba(0,0,0,0.45)}
+  .controls button:active{transform:translateY(1px)}
+
+  canvas.bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .aurora{position:fixed;inset:0;z-index:1;pointer-events:none;mix-blend-mode:screen;background:
+    radial-gradient(circle at 10% 20%, rgba(86,240,190,0.06), transparent 6%),
+    radial-gradient(circle at 85% 40%, rgba(180,120,255,0.05), transparent 8%);}
+
+  .stage{position:relative;width:100%;height:100%;display:grid;place-items:center;z-index:6}
+  .bouquet{width:760px;max-width:92vw;height:520px;position:relative;z-index:12;pointer-events:auto;display:block}
+  .flowers{position:relative;width:100%;height:100%;z-index:15;pointer-events:auto}
+
+  .flower{position:absolute;width:92px;height:140px;transform-origin:center bottom;cursor:pointer;user-select:none;z-index:20;pointer-events:auto;overflow:visible}
+  .flower:hover{transform:translateY(-6px) scale(1.04);filter:drop-shadow(0 22px 36px rgba(0,0,0,0.45))}
+  .flower svg{display:block;pointer-events:none}
+
+  .tooltip{position:absolute;left:50%;transform:translateX(-50%);bottom:110%;background:linear-gradient(180deg,var(--accent),#ff7a8a);color:#fff;font-weight:800;padding:8px 12px;border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,0.45);white-space:nowrap;z-index:350;pointer-events:none;animation:tipIn .26s ease forwards}
+  @keyframes tipIn{from{opacity:0;transform:translateX(-50%) translateY(-6px)}to{opacity:1;transform:translateX(-50%) translateY(-12px)}}
+  .subtitle{position:absolute;left:50%;transform:translateX(-50%);bottom:-48px;color:rgba(255,255,255,0.36);font-size:15px;z-index:12;animation:subtitlePulse 2.8s ease-in-out infinite}
+  @keyframes subtitlePulse{0%{color:rgba(255,255,255,0.36)}50%{color:#ff9ab3}100%{color:rgba(255,255,255,0.36)}}
+
+  .big-star-overlay{position:fixed;inset:0;display:grid;place-items:center;z-index:260;pointer-events:none;opacity:0;transition:opacity .18s;background: radial-gradient(circle at 50% 50%, rgba(255,245,200,0.02), transparent 25%)}
+  .big-star-overlay.show{opacity:1;pointer-events:auto}
+  .big-star{width:160px;height:160px;transform:scale(.22);transition:transform .6s cubic-bezier(.22,.9,.28,1),opacity .12s;opacity:0;filter:drop-shadow(0 36px 70px rgba(255,200,60,0.14))}
+  .big-star-overlay.show .big-star{transform:scale(6);opacity:1}
+
+  .sparkle{position:absolute;font-size:16px;color:#fff7c2;z-index:270;pointer-events:none;text-shadow:0 6px 18px rgba(255,190,60,0.18)}
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:300;display:grid;place-items:center;opacity:0;pointer-events:none;transition:opacity .26s}
+  .backdrop.show{opacity:1;pointer-events:auto}
+  .card{width:min(720px,92%);background:linear-gradient(180deg,#0c0c10,#17161a);border-radius:14px;padding:28px;color:#fff;text-align:center;box-shadow:0 40px 140px rgba(0,0,0,0.6);transform:translateY(8px);transition:transform .26s}
+  .card h2{margin:0 0 8px;color:#ffdce3;font-size:28px}
+  .card p{margin:0 0 14px;color:#e6e0e5;font-size:16px;line-height:1.5}
+  .card .signature{font-weight:900;color:#ffb6c6;margin-top:6px}
+  .card .actions button{margin-top:12px;padding:8px 12px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-weight:800;cursor:pointer}
+
+  .emoji{position:fixed;font-size:30px;z-index:290;pointer-events:none;animation:rise 1.6s forwards}
+  @keyframes rise{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-140px) scale(1.08)}}
+
+  .shooting-star{position:fixed;height:2px;background:linear-gradient(90deg, rgba(255,255,255,0.96), rgba(255,255,255,0));transform:rotate(-32deg);z-index:2}
+</style>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+  <div class="controls" role="group" aria-label="Controles">
+    <button id="btnSorpresa">Sorpresa</button>
+    <button id="btnReload" title="Recargar (F5)">Reiniciar</button>
+  </div>
+
+  <canvas id="starsCanvas" class="bg" aria-hidden="true"></canvas>
+
+  <main class="stage" id="stage" role="main" aria-label="Ramo interactivo">
+    <section class="bouquet" id="bouquet" aria-hidden="false">
+      <div class="flowers" id="flowers" aria-live="polite"></div>
+      <div class="subtitle">Haz click en una rosa para ver una frase bonita ✨</div>
+    </section>
+  </main>
+
+  <div id="bigStarOverlay" class="big-star-overlay" aria-hidden="true">
+    <div id="bigStar" class="big-star" aria-hidden="true">
+      <svg viewBox="0 0 100 100" width="160" height="160" aria-hidden="true">
+        <defs><linearGradient id="sg" x1="0" x2="1"><stop offset="0" stop-color="#fff7a6"/><stop offset="1" stop-color="#ffd157"/></linearGradient><filter id="glo"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+        <g filter="url(#glo)"><path d="M50 6 L62 36 L94 36 L68 56 L78 88 L50 70 L22 88 L32 56 L6 36 L38 36 Z" fill="url(#sg)" stroke="#ffd36b" stroke-width="1.6"/></g>
+      </svg>
+    </div>
+  </div>
+
+  <div id="starContainer" style="position:fixed;inset:0;pointer-events:none;z-index:255"></div>
+
+  <div id="modalBackdrop" class="backdrop" aria-hidden="true">
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <h2 id="modalTitle">Para ti :3 </h2>
+      <p id="modalMessage">
+        Cada rosa en este pequeño corazón guarda un recuerdo, una risa y un suspiro pensado en ti.
+        Gracias por ser compañía, por tus abrazos que calman y por las palabras que pintan mis días.
+        Quiero que sepas que en cada detalle cotidiano te llevo conmigo: en las canciones, en los pequeños planes,
+        en mis pensamientos a media noche y en los sueños que imagino a tu lado. Esto va de mí para ti, con todo cariño.
+      </p>
+      <div class="signature">para ti, reina — te quiero mucho</div>
+      <div style="margin-top:18px"><div class="actions"><button id="closeModal">Cerrar</button></div></div>
+    </div>
+  </div>
+
+<script>
+/* DOM ready */
+document.addEventListener('DOMContentLoaded', () => { try { initAll(); } catch(e) { console.error(e); } });
+
+/* Stars canvas */
+const canvas = document.getElementById('starsCanvas');
+const ctx = canvas.getContext('2d');
+function fitCanvas(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; initStars(); createNameStars(currentName); }
+window.addEventListener('resize', fitCanvas);
+
+let stars=[];
+let nameStars=[];
+let currentName = 'YHIBEL';
+
+function initStars(){
+  stars=[];
+  const count = Math.max(120, Math.round(canvas.width * canvas.height / 12000));
+  for(let i=0;i<count;i++){
+    stars.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:Math.random()*1.8+0.4,a:0.2+Math.random()*0.9,p:Math.random()*Math.PI*2,f:0.002+Math.random()*0.01});
+  }
+}
+fitCanvas();
+
+let last = performance.now();
+function draw(now){
+  const dt = now - last; last = now;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // background stars
+  for(const s of stars){
+    s.p += s.f * dt;
+    const alpha = Math.max(0.06, Math.min(1, s.a * (0.6 + 0.4 * Math.sin(s.p))));
+    const grad = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.r*6);
+    grad.addColorStop(0, `rgba(255,255,255,${alpha})`);
+    grad.addColorStop(0.6, `rgba(255,255,255,${alpha*0.12})`);
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r*3,0,Math.PI*2); ctx.fill();
+  }
+
+  // name stars (brighter, pinkish)
+  for(const ns of nameStars){
+    ns.phase += ns.speed * dt;
+    const flick = 0.6 + 0.4 * Math.sin(ns.phase);
+    const alpha = Math.max(0.18, Math.min(1, ns.baseA * flick));
+    const rad = Math.max(1.2, ns.r * 1.3);
+    const gradN = ctx.createRadialGradient(ns.x, ns.y, 0, ns.x, ns.y, rad*4);
+    gradN.addColorStop(0, `rgba(255,200,220,${alpha})`);
+    gradN.addColorStop(0.5, `rgba(255,110,140,${alpha*0.26})`);
+    gradN.addColorStop(1, 'rgba(255,90,120,0)');
+    ctx.fillStyle = gradN;
+    ctx.beginPath(); ctx.arc(ns.x, ns.y, rad*1.2, 0, Math.PI*2); ctx.fill();
+  }
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+/* Create name-shaped stars — use strokeText so letters are outlines (no filled rectangle) */
+function createNameStars(name){
+  nameStars = [];
+  if(!name || name.trim().length === 0) return;
+
+  // offscreen canvas sized to an area we will map into the center of screen
+  const off = document.createElement('canvas');
+  const ow = Math.min(window.innerWidth * 0.85, 1400);
+  const oh = Math.min(window.innerHeight * 0.45, 420);
+  off.width = Math.max(600, Math.round(ow));
+  off.height = Math.max(160, Math.round(oh));
+  const oc = off.getContext('2d');
+
+  // choose large font size based on offscreen width
+  const fontSize = Math.round(off.width * 0.18);
+  oc.clearRect(0,0,off.width,off.height);
+  // draw transparent background (we won't fill) to keep anti-aliasing consistent
+  oc.fillStyle = 'rgba(0,0,0,0)';
+  oc.fillRect(0,0,off.width,off.height);
+
+  // DRAW STROKE OUTLINE of text — this creates a clean letter silhouette (no solid fill)
+  oc.strokeStyle = '#ffffff';
+  oc.lineWidth = Math.max(6, Math.round(fontSize * 0.12));
+  oc.lineJoin = 'round';
+  oc.lineCap = 'round';
+  oc.font = `bold ${fontSize}px "Arial", sans-serif`;
+  oc.textAlign = 'center';
+  oc.textBaseline = 'middle';
+  const cx = off.width / 2;
+  const cy = off.height / 2 + Math.round(fontSize * 0.04);
+  oc.strokeText(name, cx, cy);
+
+  // sample the offscreen pixels — step controls density
+  const step = Math.max(6, Math.round(Math.min(off.width, off.height) / 110)); // sparser than before
+  const img = oc.getImageData(0,0,off.width,off.height).data;
+
+  // map offscreen area to target centered area on screen
+  const centerX = window.innerWidth / 2;
+  // <-- ajuste vertical: valor más negativo sube el texto
+  const nameVerticalOffset = -260; // cambiado a -260 (sube más)
+  const centerY = window.innerHeight / 2 + nameVerticalOffset;
+  const scale = Math.min((window.innerWidth * 0.65) / off.width, (window.innerHeight * 0.32) / off.height);
+  const targetW = off.width * scale;
+  const targetH = off.height * scale;
+  const left = centerX - targetW/2;
+  const top = centerY - targetH/2;
+
+  for(let y=0; y<off.height; y+=step){
+    for(let x=0; x<off.width; x+=step){
+      const idx = (y * off.width + x) * 4;
+      const alpha = img[idx+3]; // alpha channel from stroke (stroke pixels are opaque)
+      // choose threshold to pick only stroked pixels (no anti-aliased background)
+      if(alpha > 60){
+        const sx = left + x * scale + (Math.random()*step - step/2) * 0.25;
+        const sy = top  + y * scale + (Math.random()*step - step/2) * 0.25;
+        nameStars.push({
+          x: sx,
+          y: sy,
+          r: (0.9 + Math.random()*1.6) * Math.max(0.9, scale*0.9),
+          baseA: 0.6 + Math.random()*0.6,
+          speed: 0.004 + Math.random()*0.014,
+          phase: Math.random()*Math.PI*2
+        });
+      }
+    }
+  }
+
+  // If nameStars is too sparse (e.g. on very small screens), add a small fallback
+  if(nameStars.length < 18){
+    // sample at slightly lower threshold/denser step around center line
+    for(let i=0;i<28;i++){
+      const angle = Math.random()*Math.PI*2;
+      const rad = 10 + Math.random()*160;
+      nameStars.push({
+        x: centerX + Math.cos(angle)*rad,
+        y: centerY + Math.sin(angle)*rad,
+        r: 1.2 + Math.random()*1.4,
+        baseA: 0.6 + Math.random()*0.6,
+        speed: 0.004 + Math.random()*0.014,
+        phase: Math.random()*Math.PI*2
+      });
+    }
+  }
+}
+
+/* Rest of interactions — roses, tooltips and surprise kept unchanged from previous stable version */
+
+/* rose & stem creation (kept as before, unchanged behavior) */
+function heartPoint(t){ const x = 16 * Math.pow(Math.sin(t),3); const y = 13 * Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t); return {x,y}; }
+function makeRoseSVG(uid, size=86){
+  const ns="http://www.w3.org/2000/svg";
+  const svg=document.createElementNS(ns,'svg'); svg.setAttribute('viewBox','0 0 120 140'); svg.setAttribute('width',size); svg.setAttribute('height',Math.round(size*1.2));
+  const defs=document.createElementNS(ns,'defs');
+  defs.innerHTML = `<radialGradient id="rgA${uid}" cx="30%" cy="25%"><stop offset="0%" stop-color="#ffeff0"/><stop offset="45%" stop-color="#ff6b7f"/><stop offset="100%" stop-color="#b81428"/></radialGradient><radialGradient id="rgB${uid}" cx="50%" cy="44%"><stop offset="0%" stop-color="#fff2f3"/><stop offset="60%" stop-color="#ff89a0"/><stop offset="100%" stop-color="#a60f1b"/></radialGradient><filter id="f${uid}"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+  svg.appendChild(defs);
+  const g=document.createElementNS(ns,'g'); g.setAttribute('transform','translate(60,60)');
+  const big=document.createElementNS(ns,'path'); big.setAttribute('d','M0 -32 C12 -48 36 -46 38 -28 C38 -14 22 6 6 6 C-10 6 -28 -6 -26 -22 C-24 -36 -12 -28 0 -32Z'); big.setAttribute('fill','url(#rgA'+uid+')'); big.setAttribute('stroke','#6a0f18'); big.setAttribute('stroke-width','0.9'); big.setAttribute('filter','url(#f'+uid+')'); g.appendChild(big);
+  const p1=document.createElementNS(ns,'path'); p1.setAttribute('d','M0 -22 C8 -34 22 -32 24 -20 C24 -8 14 6 2 6 C-10 6 -20 -6 -18 -16 C-16 -26 -8 -20 0 -22Z'); p1.setAttribute('fill','url(#rgB'+uid+')'); p1.setAttribute('stroke','#5a0c14'); p1.setAttribute('stroke-width','0.7'); p1.setAttribute('transform','rotate(20)'); g.appendChild(p1);
+  const p2=p1.cloneNode(true); p2.setAttribute('transform','rotate(-20)'); g.appendChild(p2);
+  const inner=document.createElementNS(ns,'path'); inner.setAttribute('d','M0 -14 C6 -24 16 -22 18 -14 C18 -8 12 0 4 0 C-4 0 -10 -6 -8 -12 C-6 -16 -2 -12 0 -14Z'); inner.setAttribute('fill','#7a0810'); inner.setAttribute('stroke','#ffb2b8'); inner.setAttribute('stroke-width','0.5'); g.appendChild(inner);
+  const center=document.createElementNS(ns,'circle'); center.setAttribute('r','4'); center.setAttribute('cy','4'); center.setAttribute('fill','#ffd6e0'); center.setAttribute('opacity','0.9'); g.appendChild(center);
+  svg.appendChild(g); return svg;
+}
+function makeStemSVG(length=92){ const ns="http://www.w3.org/2000/svg"; const svg=document.createElementNS(ns,'svg'); svg.setAttribute('viewBox','0 0 20 120'); svg.setAttribute('width','12'); svg.setAttribute('height',String(length)); svg.style.position='absolute'; svg.style.left='50%'; svg.style.bottom='-10px'; svg.style.transform='translateX(-50%)'; svg.style.pointerEvents='none'; const defs=document.createElementNS(ns,'defs'); defs.innerHTML = `<linearGradient id="gSt"><stop offset="0" stop-color="#4cbf55"/><stop offset="1" stop-color="#0c5a24"/></linearGradient>`; svg.appendChild(defs); const path=document.createElementNS(ns,'path'); path.setAttribute('d',`M10 6 C12 22 8 48 10 ${length-8}`); path.setAttribute('stroke','url(#gSt)'); path.setAttribute('stroke-width','4'); path.setAttribute('stroke-linecap','round'); path.setAttribute('fill','none'); svg.appendChild(path); return svg; }
+
+function spawnFlower({leftPct, topPct, angle=0, scale=1, uid}){
+  const wrap=document.createElement('div'); wrap.className='flower';
+  wrap.style.left = leftPct + '%'; wrap.style.top = topPct + '%';
+  wrap.style.transform = `translate(-50%,-50%) rotate(${angle}deg) scale(${scale})`;
+  wrap.setAttribute('role','button'); wrap.setAttribute('aria-label','Rosa');
+  wrap.appendChild(makeStemSVG(Math.round(86*scale)));
+  const rose = makeRoseSVG(uid, Math.round(86*scale));
+  rose.style.position='absolute'; rose.style.left='50%'; rose.style.bottom='6px'; rose.style.transform='translateX(-50%)';
+  wrap.appendChild(rose);
+  wrap.addEventListener('click', (e)=>{ e.stopPropagation(); showTooltip(wrap); showSparklesAround(wrap); });
+  document.getElementById('flowers').appendChild(wrap);
+  return wrap;
+}
+
+function createHeartLayout(count=34){
+  const cont=document.getElementById('flowers'); cont.innerHTML=''; let uid=0;
+  for(let i=0;i<count;i++){ const t=(i/count)*Math.PI*2; const p=heartPoint(t);
+    const left = 50 + (p.x/32)*60 + (Math.random()*6 - 3);
+    const top  = 44 + (-p.y/28)*50 + (Math.random()*5 - 2);
+    spawnFlower({leftPct:left, topPct:top, angle:(Math.random()*16 - 8), scale:0.82 + Math.random()*0.28, uid:++uid});
+  }
+  for(let i=0;i<Math.round(count/5);i++){ const t=Math.random()*Math.PI*2; const p=heartPoint(t);
+    const left = 50 + (p.x/32)*60 + (Math.random()*10 - 5);
+    const top  = 44 + (-p.y/28)*50 + (Math.random()*8 - 4);
+    spawnFlower({leftPct:left, topPct:top, angle:(Math.random()*20 - 10), scale:0.58 + Math.random()*0.34, uid:++uid});
+  }
+}
+
+/* tooltip & sparkles */
+const phrases=["Eres la razón de mi sonrisa ❤️","Contigo cada día es mas bonito ✨","Te quiero tanto 💖","mua mua mua💘","te amo mucho <3"];
+function showTooltip(f){ const ex=f.querySelector('.tooltip'); if(ex) ex.remove(); const tip=document.createElement('div'); tip.className='tooltip'; tip.textContent=phrases[Math.floor(Math.random()*phrases.length)]; f.appendChild(tip); setTimeout(()=> tip.remove(), 3400); }
+function showSparklesAround(el){ const rect=el.getBoundingClientRect(); const cx=rect.left+rect.width/2; const cy=rect.top+rect.height/2;
+  for(let i=0;i<18;i++){ const sp=document.createElement('div'); sp.className='sparkle'; sp.innerText='✦'; document.getElementById('starContainer').appendChild(sp); sp.style.left=cx+'px'; sp.style.top=cy+'px'; const ang=Math.random()*Math.PI*2; const dist=40 + Math.random()*120; const dx=Math.cos(ang)*dist; const dy=Math.sin(ang)*dist; sp.animate([{transform:'translate(0,0) scale(.6)',opacity:1},{transform:`translate(${dx}px,${dy}px) scale(1.1)`,opacity:0}],{duration:800+Math.random()*700,easing:'cubic-bezier(.2,.8,.2,1)'}); setTimeout(()=> sp.remove(), 1400 + Math.random()*600); }
+}
+
+/* clicks outside -> emojis */
+const emojis=['😍','😘','🥰','💖','😻'];
+document.getElementById('stage').addEventListener('click', (e)=>{ if(e.target.closest('.controls')) return; if(e.target.closest('.flower')) return; spawnEmoji(e.clientX, e.clientY); });
+function spawnEmoji(x,y){ const el=document.createElement('div'); el.className='emoji'; el.innerText=emojis[Math.floor(Math.random()*emojis.length)]; el.style.left=(x-16)+'px'; el.style.top=(y-16)+'px'; document.body.appendChild(el); setTimeout(()=> el.remove(),1600); }
+
+/* surprise & explosion */
+const btnSorp = document.getElementById('btnSorpresa'); const btnReload = document.getElementById('btnReload'); const bigOverlay = document.getElementById('bigStarOverlay'); const modalBackdrop = document.getElementById('modalBackdrop'); const starContainer = document.getElementById('starContainer');
+document.getElementById('closeModal').addEventListener('click', ()=> modalBackdrop.classList.remove('show'));
+btnSorp.addEventListener('click', doSurprise); btnReload.addEventListener('click', ()=> location.reload());
+
+function doSurprise(){
+  bigOverlay.classList.add('show');
+  setTimeout(()=> {
+    const centerX = window.innerWidth/2; const centerY = window.innerHeight/2;
+    spawnExplodingParticles(centerX, centerY, 120);
+  }, 420);
+  setTimeout(()=> { bigOverlay.classList.remove('show'); setTimeout(()=> modalBackdrop.classList.add('show'), 240); }, 1200);
+}
+function spawnExplodingParticles(cx, cy, count=80){
+  const particles=[];
+  for(let i=0;i<count;i++){
+    const el=document.createElement('div'); el.className='sparkle'; el.innerText=['✦','✧','✺','✶'][Math.floor(Math.random()*4)]; el.style.left = cx + 'px'; el.style.top = cy + 'px'; const size = 8 + Math.random()*14; el.style.fontSize = size + 'px'; el.style.opacity='1'; starContainer.appendChild(el);
+    const angle=Math.random()*Math.PI*2; const speed=1.8 + Math.random()*6.5; const vx=Math.cos(angle)*speed; const vy=Math.sin(angle)*speed*0.6 - (0.8 + Math.random()*2.0); const rotation=(Math.random()*360); const vr=(Math.random()*8 - 4);
+    particles.push({el,x:cx,y:cy,vx,vy,rot:rotation,vr,life:220 + Math.random()*140,alpha:1});
+  }
+  let lastT = performance.now();
+  function step(t){
+    const dt = (t - lastT) / 16.666; lastT = t;
+    for(let i=particles.length-1;i>=0;i--){
+      const p=particles[i]; const g=0.18;
+      p.vy += g * dt; p.vx *= 0.995; p.vy *= 0.998;
+      p.x += p.vx * dt * 2.2; p.y += p.vy * dt * 2.2;
+      p.rot += p.vr * dt; p.life -= 8 * dt;
+      p.alpha = Math.max(0, p.life / 300);
+      p.el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px) rotate(${p.rot}deg) translate(-50%, -50%)`;
+      p.el.style.opacity = String(p.alpha);
+      if(p.alpha <= 0.03 || p.y > window.innerHeight + 80){ p.el.remove(); particles.splice(i,1); }
+    }
+    if(particles.length > 0) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* initAll */
+function initAll(){
+  fitCanvas();
+  createHeartLayout(30);
+  createNameStars(currentName);
+  spawnSparkleBurst(window.innerWidth/2, window.innerHeight/2, 12);
+  setTimeout(()=> { if(document.getElementById('flowers').children.length < 4){ createHeartLayout(30); } }, 480);
+}
+function spawnSparkleBurst(cx,cy,count=36){ for(let i=0;i<count;i++){ const sp=document.createElement('div'); sp.className='sparkle'; sp.innerText=['✦','✧','✺'][Math.floor(Math.random()*3)]; starContainer.appendChild(sp); sp.style.left = cx + 'px'; sp.style.top = cy + 'px'; const ang=Math.random()*Math.PI*2; const dist=40 + Math.random()*(window.innerWidth/2); const dx = Math.cos(ang)*dist; const dy = Math.sin(ang)*dist; sp.animate([{transform:'translate(0,0) scale(.6)', opacity:1},{transform:`translate(${dx}px,${dy}px) scale(1.05)`, opacity:0}],{duration:800 + Math.random()*1200, easing:'cubic-bezier(.2,.8,.2,1)'}); setTimeout(()=> sp.remove(), 1100 + Math.random()*1200); } }
+
+/* shooting stars periodically */
+setInterval(()=>{ const ss = document.createElement('div'); ss.className='shooting-star'; ss.style.width = (120 + Math.random()*320)+'px'; ss.style.left = (Math.random()*window.innerWidth*1.2 - 120) + 'px'; ss.style.top = (Math.random()*window.innerHeight*0.36) + 'px'; ss.style.opacity = 0.95; document.body.appendChild(ss); setTimeout(()=> ss.remove(), 1100); }, 2500);
+
+</script>
+</body>
+</html>
